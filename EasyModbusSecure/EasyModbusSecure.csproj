@@ -47,5 +47,8 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StoreLogData.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <WCFMetadata Include="Service Preference\" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

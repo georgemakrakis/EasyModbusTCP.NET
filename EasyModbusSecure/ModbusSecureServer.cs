@@ -30,6 +30,8 @@ using System.Net;
 using System.Threading;
 using System.Net.NetworkInformation;
 using System.IO.Ports;
+using System.Security.Cryptography.X509Certificates;
+using System.Net.Security;
 
 namespace EasyModbusSecure
 {
@@ -93,21 +95,27 @@ namespace EasyModbusSecure
 
         public string ipAddress = null;
 
-        public TCPHandler(int port)
+        private X509Certificate2 serverCertificate;
+
+        public TCPHandler(int port, string certificate)
         {
             IPAddress localAddr = IPAddress.Any;
             server = new TcpListener(localAddr, port);
             server.Start();
             server.BeginAcceptTcpClient(AcceptTcpClientCallback, null);
+
+            serverCertificate = new X509Certificate2(certificate, "YourPassowrd", X509KeyStorageFlags.MachineKeySet); // TODO: Move password to command line argument or similar
         }
 
-        public TCPHandler(string ipAddress, int port)
+        public TCPHandler(string ipAddress, int port, string certificate)
         {
             this.ipAddress = ipAddress;
             IPAddress localAddr = IPAddress.Any;
             server = new TcpListener(localAddr, port);
             server.Start();
             server.BeginAcceptTcpClient(AcceptTcpClientCallback, null);
+
+            serverCertificate = new X509Certificate2(certificate, "YourPassowrd", X509KeyStorageFlags.MachineKeySet); // TODO: Move password to command line argument or similar
         }
 
 
@@ -134,9 +142,9 @@ namespace EasyModbusSecure
             {
                 server.BeginAcceptTcpClient(AcceptTcpClientCallback, null);
                 Client client = new Client(tcpClient);
-                NetworkStream networkStream = client.NetworkStream;
-                networkStream.ReadTimeout = 4000;
-                networkStream.BeginRead(client.Buffer, 0, client.Buffer.Length, ReadCallback, client);
+                SslStream sslStream = client.SslStream;
+                sslStream.ReadTimeout = 4000;
+                sslStream.BeginRead(client.Buffer, 0, client.Buffer.Length, ReadCallback, client);               
             }
             catch (Exception) { }
         }
@@ -254,11 +262,11 @@ namespace EasyModbusSecure
                 get { return buffer; }
             }
 
-            public NetworkStream NetworkStream
+            public SslStream SslStream
             {
                 get {
                     
-                        return tcpClient.GetStream();
+                        return new SslStream(tcpClient.GetStream(), false);
 
                 }
             }
@@ -311,7 +319,9 @@ namespace EasyModbusSecure
         object lockCoils = new object();
         object lockHoldingRegisters = new object();
         private volatile bool shouldStop;
-        
+
+
+        private string certificate = "C:\\Users\\georg\\source\\repos\\TLS_Client_Server\\TLS_Client\\certs\\client.pfx";
 
 
         public ModbusSecureServer()
