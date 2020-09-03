@@ -32,6 +32,8 @@ using System.Net.NetworkInformation;
 using System.IO.Ports;
 using System.Security.Cryptography.X509Certificates;
 using System.Net.Security;
+using System.Security.Authentication;
+using System.Security.Cryptography;
 
 namespace EasyModbusSecure
 {
@@ -101,10 +103,10 @@ namespace EasyModbusSecure
         {
             IPAddress localAddr = IPAddress.Any;
             server = new TcpListener(localAddr, port);
-            server.Start();
-            server.BeginAcceptTcpClient(AcceptTcpClientCallback, null);
-
             serverCertificate = new X509Certificate2(certificate, "YourPassowrd", X509KeyStorageFlags.MachineKeySet); // TODO: Move password to command line argument or similar
+
+            server.Start();
+            server.BeginAcceptTcpClient(AcceptTcpClientCallback, null);            
         }
 
         public TCPHandler(string ipAddress, int port, string certificate)
@@ -112,10 +114,10 @@ namespace EasyModbusSecure
             this.ipAddress = ipAddress;
             IPAddress localAddr = IPAddress.Any;
             server = new TcpListener(localAddr, port);
-            server.Start();
-            server.BeginAcceptTcpClient(AcceptTcpClientCallback, null);
-
             serverCertificate = new X509Certificate2(certificate, "YourPassowrd", X509KeyStorageFlags.MachineKeySet); // TODO: Move password to command line argument or similar
+
+            server.Start();
+            server.BeginAcceptTcpClient(AcceptTcpClientCallback, null);            
         }
 
 
@@ -144,7 +146,16 @@ namespace EasyModbusSecure
                 Client client = new Client(tcpClient);
                 SslStream sslStream = client.SslStream;
                 sslStream.ReadTimeout = 4000;
-                sslStream.BeginRead(client.Buffer, 0, client.Buffer.Length, ReadCallback, client);               
+                sslStream.BeginRead(client.Buffer, 0, client.Buffer.Length, ReadCallback, client);
+
+                // Enforcing TLS 1.2, in case system is configured otherwise
+                //With Mutual Authentication
+                //sslStream.AuthenticateAsServer(serverCertificate, clientCertificateRequired: true, SslProtocols.Tls12, checkCertificateRevocation: true);
+
+                //Without Mutual Authentication
+                sslStream.AuthenticateAsServer(serverCertificate, clientCertificateRequired: false, SslProtocols.Tls12, checkCertificateRevocation: true);
+
+                DisplayCertificateInformation(sslStream, client.TcpClient);
             }
             catch (Exception) { }
         }
@@ -236,6 +247,76 @@ namespace EasyModbusSecure
             catch (Exception) { }
             server.Stop();
             
+        }
+
+
+        public void DisplayCertificateInformation(SslStream stream, TcpClient client)
+        {
+            Console.WriteLine("Certificate revocation list checked: {0}", stream.CheckCertRevocationStatus);
+
+            X509Certificate localCertificateX509 = stream.LocalCertificate;
+            X509Certificate2 localCertificateX5092 = new X509Certificate2(localCertificateX509);
+            if (stream.LocalCertificate != null)
+            {
+                Console.WriteLine("Local cert was issued to {0} and is valid from {1} until {2}.",
+                    localCertificateX5092.Subject,
+                    localCertificateX5092.GetEffectiveDateString(),
+                    localCertificateX5092.GetExpirationDateString());
+            }
+            else
+            {
+                Console.WriteLine("Local certificate is null.");
+            }
+            // Display the properties of the client's certificate.
+            X509Certificate remoteCertificateX509 = stream.RemoteCertificate;
+            X509Certificate2 remoteCertificateX5092 = new X509Certificate2(remoteCertificateX509);
+            int roleCount = 0;
+            if (stream.RemoteCertificate != null)
+            {
+                Console.WriteLine("Remote cert was issued to {0} and is valid from {1} until {2}.",
+                    remoteCertificateX5092.Subject,
+                    remoteCertificateX5092.GetEffectiveDateString(),
+                    remoteCertificateX5092.GetExpirationDateString());
+
+                // TODO: Do all these checks in another fucntion and return error code
+                foreach (X509Extension ext in remoteCertificateX5092.Extensions)
+                {
+                    AsnEncodedData asndata = new AsnEncodedData(ext.Oid, ext.RawData);
+
+                    // Remove the first two dots from the desited extension
+                    //byte[] dst = new byte[asndata.RawData.Length - 2];
+
+                    //Array.Copy(asndata.RawData, 2, dst, 0, dst.Length);
+
+                    //Console.WriteLine("EEEEEEE  {0}", Encoding.ASCII.GetString(dst));
+                    if (roleCount > 1)
+                    {
+                        Console.WriteLine("No valid role is provided - closing the connection.");
+                        throw new AuthenticationException();
+                    }
+
+                    if (ext.Oid.Value.ToString().Equals("1.3.6.1.4.1.50316.802.1"))
+                    {
+                        roleCount++;
+                        if (!Encoding.ASCII.GetString(asndata.RawData).Equals("Operator"))
+                        {
+                            // Role should be equal to zero when implemented in Modbus
+                        }
+                        //Console.WriteLine("EEEEEEE {0}", asndata.Format(true));
+                        Console.WriteLine("RoleOID:  {0}", Encoding.ASCII.GetString(asndata.RawData));
+                    }
+                }
+
+                if (roleCount == 0)
+                {
+                    Console.WriteLine("No valid role is provided - closing the connection.");
+                    throw new AuthenticationException();
+                }
+            }
+            else
+            {
+                Console.WriteLine("Remote certificate is null.");
+            }
         }
 
 
