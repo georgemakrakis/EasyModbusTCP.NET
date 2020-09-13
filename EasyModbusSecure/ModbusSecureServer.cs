@@ -402,15 +402,17 @@ namespace EasyModbusSecure
         private volatile bool shouldStop;
 
 
-        private string certificate = "C:\\Users\\georg\\source\\repos\\TLS_Client_Server\\TLS_Client\\certs\\client.pfx";
+        private string certificate { get; set; }
 
 
-        public ModbusSecureServer()
+        public ModbusSecureServer(string certificate)
         {
             holdingRegisters = new HoldingRegisters(this);
             inputRegisters = new InputRegisters(this);
             coils = new Coils(this);
             discreteInputs = new DiscreteInputs(this);
+
+            this.certificate = certificate;
 
         }
 
@@ -471,7 +473,7 @@ namespace EasyModbusSecure
                     }
                     catch (Exception) { }
                 }             
-                tcpHandler = new TCPHandler(port, ""); // Certificate path here
+                tcpHandler = new TCPHandler(port, certificate);
                 if (debug) StoreLogData.Instance.Store("EasyModbusSecure Server listing for incomming data at Port " + port, System.DateTime.Now);
                 tcpHandler.dataChanged += new TCPHandler.DataChanged(ProcessReceivedData);
                 tcpHandler.numberOfClientsChanged += new TCPHandler.NumberOfClientsChanged(numberOfClientsChanged);
