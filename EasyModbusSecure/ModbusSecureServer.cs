@@ -72,7 +72,7 @@ namespace EasyModbusSecure
 #region structs
     struct NetworkConnectionParameter
     {
-        public NetworkStream stream;        //For TCP-Connection only
+        public SslStream stream;        //For TCP-Connection only
         public Byte[] bytes;
         public int portIn;                  //For UDP-Connection only
         public IPAddress ipAddressIn;       //For UDP-Connection only
@@ -200,12 +200,12 @@ namespace EasyModbusSecure
             if (client != null)
             {
                 int read;
-                NetworkStream networkStream = null;
+                SslStream sslStream = null;
                 try
                 {
-                networkStream = client.NetworkStream;
+                    sslStream = client.SslStream;
 
-                    read = networkStream.EndRead(asyncResult);
+                    read = sslStream.EndRead(asyncResult);
                 }
                 catch (Exception ex)
                 {
@@ -222,12 +222,12 @@ namespace EasyModbusSecure
                 byte[] data = new byte[read];
                 Buffer.BlockCopy(client.Buffer, 0, data, 0, read);
                 networkConnectionParameter.bytes = data;
-                networkConnectionParameter.stream = networkStream;
+                networkConnectionParameter.stream = sslStream;
                 if (dataChanged != null)
                     dataChanged(networkConnectionParameter);
                 try
                 {
-                    networkStream.BeginRead(client.Buffer, 0, client.Buffer.Length, ReadCallback, client);
+                    sslStream.BeginRead(client.Buffer, 0, client.Buffer.Length, ReadCallback, client);
                 }
                 catch (Exception)
                 {
@@ -241,7 +241,7 @@ namespace EasyModbusSecure
             {
                 foreach (Client clientLoop in tcpClientLastRequestList)
                 {
-                    clientLoop.NetworkStream.Close(00);
+                    clientLoop.SslStream.Close(); // Do not need to have timeout for the data as in the regular NetworkStream
                 }
             }
             catch (Exception) { }
@@ -471,7 +471,7 @@ namespace EasyModbusSecure
                     }
                     catch (Exception) { }
                 }             
-                tcpHandler = new TCPHandler(port);
+                tcpHandler = new TCPHandler(port, ""); // Certificate path here
                 if (debug) StoreLogData.Instance.Store("EasyModbusSecure Server listing for incomming data at Port " + port, System.DateTime.Now);
                 tcpHandler.dataChanged += new TCPHandler.DataChanged(ProcessReceivedData);
                 tcpHandler.numberOfClientsChanged += new TCPHandler.NumberOfClientsChanged(numberOfClientsChanged);
@@ -587,7 +587,7 @@ namespace EasyModbusSecure
             {
                 Byte[] bytes = new byte[((NetworkConnectionParameter)networkConnectionParameter).bytes.Length];
                 if (debug) StoreLogData.Instance.Store("Received Data: " + BitConverter.ToString(bytes), System.DateTime.Now);
-                NetworkStream stream = ((NetworkConnectionParameter)networkConnectionParameter).stream;
+                SslStream sslStream = ((NetworkConnectionParameter)networkConnectionParameter).stream;
                 int portIn = ((NetworkConnectionParameter)networkConnectionParameter).portIn;
                 IPAddress ipAddressIn = ((NetworkConnectionParameter)networkConnectionParameter).ipAddressIn;
 
@@ -735,7 +735,7 @@ namespace EasyModbusSecure
                 }
                 catch (Exception exc)
                 { }
-                this.CreateAnswer(receiveDataThread, sendDataThread, stream, portIn, ipAddressIn);
+                this.CreateAnswer(receiveDataThread, sendDataThread, sslStream, portIn, ipAddressIn);
                 //this.sendAnswer();
                 this.CreateLogData(receiveDataThread, sendDataThread);
 
@@ -746,7 +746,7 @@ namespace EasyModbusSecure
         #endregion
          
         #region Method CreateAnswer
-        private void CreateAnswer(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, NetworkStream stream, int portIn, IPAddress ipAddressIn)
+        private void CreateAnswer(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, SslStream stream, int portIn, IPAddress ipAddressIn)
         {
 
             switch (receiveData.functionCode)
@@ -868,7 +868,7 @@ namespace EasyModbusSecure
         }
         #endregion
          
-        private void ReadCoils(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, NetworkStream stream, int portIn, IPAddress ipAddressIn)
+        private void ReadCoils(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, SslStream stream, int portIn, IPAddress ipAddressIn)
         {
             sendData.response = true;
 
@@ -996,7 +996,7 @@ namespace EasyModbusSecure
             }  
         }
 
-        private void ReadDiscreteInputs(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, NetworkStream stream, int portIn, IPAddress ipAddressIn)
+        private void ReadDiscreteInputs(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, SslStream stream, int portIn, IPAddress ipAddressIn)
         {
             sendData.response = true;
 
@@ -1122,7 +1122,7 @@ namespace EasyModbusSecure
             }
         }
 
-        private void ReadHoldingRegisters(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, NetworkStream stream, int portIn, IPAddress ipAddressIn)
+        private void ReadHoldingRegisters(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, SslStream stream, int portIn, IPAddress ipAddressIn)
         {
             sendData.response = true;
 
@@ -1238,7 +1238,7 @@ namespace EasyModbusSecure
             }       
         }
 
-        private void ReadInputRegisters(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, NetworkStream stream, int portIn, IPAddress ipAddressIn)
+        private void ReadInputRegisters(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, SslStream stream, int portIn, IPAddress ipAddressIn)
         {
             sendData.response = true;
 
@@ -1355,7 +1355,7 @@ namespace EasyModbusSecure
             }
         }
 
-        private void WriteSingleCoil(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, NetworkStream stream, int portIn, IPAddress ipAddressIn)
+        private void WriteSingleCoil(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, SslStream stream, int portIn, IPAddress ipAddressIn)
         {
             sendData.response = true;
 
@@ -1484,7 +1484,7 @@ namespace EasyModbusSecure
             }
         }
 
-        private void WriteSingleRegister(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, NetworkStream stream, int portIn, IPAddress ipAddressIn)
+        private void WriteSingleRegister(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, SslStream stream, int portIn, IPAddress ipAddressIn)
         {
             sendData.response = true;
 
@@ -1607,7 +1607,7 @@ namespace EasyModbusSecure
             }
         }
 
-        private void WriteMultipleCoils(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, NetworkStream stream, int portIn, IPAddress ipAddressIn)
+        private void WriteMultipleCoils(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, SslStream stream, int portIn, IPAddress ipAddressIn)
         {
             sendData.response = true;
 
@@ -1747,7 +1747,7 @@ namespace EasyModbusSecure
             }
         }
 
-        private void WriteMultipleRegisters(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, NetworkStream stream, int portIn, IPAddress ipAddressIn)
+        private void WriteMultipleRegisters(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, SslStream stream, int portIn, IPAddress ipAddressIn)
         {
             sendData.response = true;
 
@@ -1871,7 +1871,7 @@ namespace EasyModbusSecure
             }
         }
 
-        private void ReadWriteMultipleRegisters(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, NetworkStream stream, int portIn, IPAddress ipAddressIn)
+        private void ReadWriteMultipleRegisters(ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, SslStream stream, int portIn, IPAddress ipAddressIn)
         {
             sendData.response = true;
 
@@ -2002,7 +2002,7 @@ namespace EasyModbusSecure
             }
         }
 
-        private void sendException(int errorCode, int exceptionCode, ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, NetworkStream stream, int portIn, IPAddress ipAddressIn)
+        private void sendException(int errorCode, int exceptionCode, ModbusSecureProtocol receiveData, ModbusSecureProtocol sendData, SslStream stream, int portIn, IPAddress ipAddressIn)
         {
             sendData.response = true;
 
