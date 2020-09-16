@@ -101,7 +101,7 @@ namespace EasyModbusSecure
 
         public TCPHandler(int port, string certificate)
         {
-            IPAddress localAddr = IPAddress.Any;
+            IPAddress localAddr = IPAddress.Loopback;
             server = new TcpListener(localAddr, port);
             serverCertificate = new X509Certificate2(certificate, "YourPassowrd", X509KeyStorageFlags.MachineKeySet); // TODO: Move password to command line argument or similar
 
@@ -112,7 +112,7 @@ namespace EasyModbusSecure
         public TCPHandler(string ipAddress, int port, string certificate)
         {
             this.ipAddress = ipAddress;
-            IPAddress localAddr = IPAddress.Any;
+            IPAddress localAddr = IPAddress.Loopback; //Change that back to .Any
             server = new TcpListener(localAddr, port);
             serverCertificate = new X509Certificate2(certificate, "YourPassowrd", X509KeyStorageFlags.MachineKeySet); // TODO: Move password to command line argument or similar
 
@@ -143,19 +143,25 @@ namespace EasyModbusSecure
             try
             {
                 server.BeginAcceptTcpClient(AcceptTcpClientCallback, null);
+
+                //StoreLogData.Instance.Store("EasyModbusSecure Server accepts client");
+
                 Client client = new Client(tcpClient);
                 SslStream sslStream = client.SslStream;
                 sslStream.ReadTimeout = 4000;
-                sslStream.BeginRead(client.Buffer, 0, client.Buffer.Length, ReadCallback, client);
 
                 // Enforcing TLS 1.2, in case system is configured otherwise
                 //With Mutual Authentication
                 //sslStream.AuthenticateAsServer(serverCertificate, clientCertificateRequired: true, SslProtocols.Tls12, checkCertificateRevocation: true);
 
                 //Without Mutual Authentication
-                sslStream.AuthenticateAsServer(serverCertificate, clientCertificateRequired: false, SslProtocols.Tls12, checkCertificateRevocation: true);
 
-                DisplayCertificateInformation(sslStream, client.TcpClient);
+                sslStream.AuthenticateAsServer(serverCertificate, clientCertificateRequired: false, SslProtocols.Tls12, checkCertificateRevocation: true);
+                
+                //StoreLogData.Instance.Store("EasyModbusSecure Server accepts sslStream");
+                //DisplayCertificateInformation(sslStream, client.TcpClient);
+
+                sslStream.BeginRead(client.Buffer, 0, client.Buffer.Length, ReadCallback, client);                                            
             }
             catch (Exception) { }
         }

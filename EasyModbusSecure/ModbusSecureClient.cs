@@ -30,6 +30,7 @@ using System.Text;
 using System.Collections.Generic;
 using System.Net.Security;
 using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 
 namespace EasyModbusSecure
 {
@@ -55,7 +56,7 @@ namespace EasyModbusSecure
         private bool udpFlag = false;
         private int portOut;
         private int baudRate = 9600;
-        private int connectTimeout = 1000;
+        private int connectTimeout = 3000; // Decrease tht back to 1000
         public byte[] receiveData;
         public byte[] sendData;
         private SerialPort serialport;
@@ -91,6 +92,20 @@ namespace EasyModbusSecure
 #endif
             this.ipAddress = ipAddress;
             this.port = port;
+        }
+
+        /// <summary>
+        /// The following method is invoked by the RemoteCertificateValidationDelegate.
+        /// </summary>
+        public static bool ValidateServerCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        {
+            if (sslPolicyErrors == SslPolicyErrors.None)
+                return true;
+
+            Console.WriteLine("Certificate error: {0}", sslPolicyErrors);
+
+            // Do not allow this client to communicate with unauthenticated servers.
+            return false;
         }
 
         /// <summary>
@@ -173,7 +188,11 @@ namespace EasyModbusSecure
                 tcpClient.EndConnect(result);
 
                 //tcpClient = new TcpClient(ipAddress, port);
-                stream = new SslStream(tcpClient.GetStream(), false); // TODO: add the option for the RemoteCertificateValidation
+                stream = new SslStream(tcpClient.GetStream(),
+                    false,
+                    new RemoteCertificateValidationCallback(ValidateServerCertificate),
+                    //new LocalCertificateSelectionCallback(SelectLocalCertificate)
+                    null); // TODO: add the option for the RemoteCertificateValidation
                 stream.ReadTimeout = connectTimeout;
                 connected = true;
 
@@ -181,7 +200,7 @@ namespace EasyModbusSecure
                 {
                     // Enforcing TLS 1.2, in case system is configured otherwise
                     // Without Mutual Authentication
-                    stream.AuthenticateAsClient(ipAddress);
+                    stream.AuthenticateAsClient(ipAddress, clientCertificates: null, SslProtocols.Tls12, checkCertificateRevocation: true);
 
                     // With Mutual Authentication
                     //stream.AuthenticateAsClient(serverName, cCollection, SslProtocols.Tls12, true);
